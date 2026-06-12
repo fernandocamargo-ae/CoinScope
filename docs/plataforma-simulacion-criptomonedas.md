@@ -218,7 +218,7 @@ En la práctica, el flujo principal es: **Controller → Service → Repository 
 | Backend | Laravel 12 |
 | Base de Datos | MySQL 8 |
 | API Externa | CoinGecko |
-| Cache | Redis (Opcional) |
+| Cache | Laravel Cache · driver `database` (Redis opcional) |
 | Autenticación | Laravel Breeze |
 
 ### 14.2 Organización en Capas Lógicas
@@ -326,15 +326,17 @@ flowchart TD
 
 ### 14.7 Estrategia de Cache
 
-Para evitar excesivas llamadas a CoinGecko:
+Para evitar excesivas llamadas a CoinGecko se emplea la capa de caché de Laravel (`Cache::remember`). Gracias a que Laravel abstrae el almacenamiento, el código del `CryptoPriceService` es independiente del driver: hoy se usa el driver **`database`** (las entradas se guardan en la tabla `cache` de MySQL) y puede conmutarse a **Redis** únicamente cambiando configuración en `.env` (`CACHE_STORE=redis`), sin modificar una sola línea de código.
 
-`Laravel Cache → Redis → CoinGecko`
+`CryptoPriceService → Laravel Cache (database / Redis) → CoinGecko`
 
-| Información | Cache |
-|-------------|-------|
+| Información | TTL (vigencia) |
+|-------------|----------------|
 | Precio actual | 5 minutos |
 | Histórico | 24 horas |
 | Exchange Rate USD/GTQ | 1 hora |
+
+> **Estado actual:** driver `database` (tabla `cache` de MySQL). Redis queda contemplado como mejora opcional de rendimiento, lista para activarse en producción sin cambios de código.
 
 ### 14.8 Estructura de Carpetas Laravel
 

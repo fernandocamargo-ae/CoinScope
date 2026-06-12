@@ -39,6 +39,24 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    :href="route('simulations.buy.form')"
+                                    :active="route().current('simulations.buy.form')"
+                                >
+                                    Comprar
+                                </NavLink>
+                                <NavLink
+                                    :href="route('simulations.sell.form')"
+                                    :active="route().current('simulations.sell.form')"
+                                >
+                                    Vender
+                                </NavLink>
+                                <NavLink
+                                    :href="route('simulations.history')"
+                                    :active="route().current('simulations.history')"
+                                >
+                                    Historial
+                                </NavLink>
                             </div>
                         </div>
 
@@ -145,6 +163,24 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('dashboard')"
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('simulations.buy.form')"
+                            :active="route().current('simulations.buy.form')"
+                        >
+                            Comprar
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('simulations.sell.form')"
+                            :active="route().current('simulations.sell.form')"
+                        >
+                            Vender
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('simulations.history')"
+                            :active="route().current('simulations.history')"
+                        >
+                            Historial
                         </ResponsiveNavLink>
                     </div>
 
