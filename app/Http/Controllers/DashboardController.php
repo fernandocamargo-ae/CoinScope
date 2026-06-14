@@ -30,6 +30,7 @@ class DashboardController extends Controller
             $balance = (float) $a->balance;
 
             return [
+                'id'        => $a->cryptocurrency->id,
                 'symbol'    => $a->cryptocurrency->symbol,
                 'name'      => $a->cryptocurrency->name,
                 'balance'   => $balance,

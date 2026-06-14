@@ -364,7 +364,7 @@ flowchart LR
 
     Services --> CryptoPriceService
     Services --> SimulationService
-    Services --> PortfolioService
+    Services --> AuditService
 
     Repositories --> Contracts["Contracts (interfaces)"]
     Repositories --> Eloquent["Implementaciones Eloquent"]
@@ -647,18 +647,23 @@ classDiagram
         +getSnapshotByDate()
     }
     class SimulationService {
-        +simulateBuy()
-        +simulateSell()
-        +simulateExchange()
+        +previewBuy()
+        +executeBuy()
+        +previewSell()
+        +executeSell()
+        +previewExchange()
+        +executeExchange()
+        +history()
     }
-    class PortfolioService {
-        +addAsset()
-        +removeAsset()
-        +getBalance()
+    class AuditService {
+        +log()
     }
 ```
 
-> El guardado de precios (`PriceSnapshot`) es responsabilidad de `CryptoPriceService` mediante `saveSnapshot()`: al consultar el precio en CoinGecko se persiste el registro histórico en la misma operación, evitando una clase de servicio adicional.
+> **Notas de implementación:**
+> - El guardado de precios (`PriceSnapshot`) es responsabilidad de `CryptoPriceService` mediante `saveSnapshot()`: al consultar el precio en CoinGecko se persiste el registro histórico en la misma operación, evitando una clase de servicio adicional.
+> - `SimulationService` separa cada operación en **`preview…`** (calcula sin guardar, para cumplir RN-02) y **`execute…`** (persiste la simulación y actualiza el portafolio dentro de una transacción). La gestión de saldos del portafolio (descontar/sumar activos) vive dentro de estos métodos `execute…`, por lo que no se requirió una clase `PortfolioService` separada.
+> - `AuditService.log()` centraliza el registro de eventos (RF-010); se invoca desde los controladores y desde los eventos de autenticación de Laravel (`Login`, `Registered`, `Logout`).
 
 ---
 
@@ -679,7 +684,7 @@ sequenceDiagram
 
     Usuario->>Vue: Comprar BTC
     Vue->>Ctrl: POST /simulation/buy
-    Ctrl->>Svc: simulateBuy(dto)
+    Ctrl->>Svc: executeBuy(dto)
     Svc->>Price: getCurrentPrice(BTC)
 
     alt Precio en caché vigente
@@ -717,7 +722,7 @@ sequenceDiagram
 
     Usuario->>Vue: Vender cripto
     Vue->>Ctrl: solicitud
-    Ctrl->>Svc: simulateSell(dto)
+    Ctrl->>Svc: executeSell(dto)
     Svc->>Price: getCurrentPrice()
 
     alt Precio en caché vigente
@@ -752,7 +757,7 @@ sequenceDiagram
 
     Usuario->>Vue: Intercambiar cripto
     Vue->>Ctrl: solicitud
-    Ctrl->>Svc: simulateExchange(dto)
+    Ctrl->>Svc: executeExchange(dto)
     Svc->>Price: convertCrypto(origen, destino)
 
     alt Precios en caché vigentes

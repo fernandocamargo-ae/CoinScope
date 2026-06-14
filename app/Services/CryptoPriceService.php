@@ -141,4 +141,30 @@ class CryptoPriceService
             ->latest('captured_at')
             ->first();
     }
+
+        /**
+     * Precios históricos de una cripto desde CoinGecko (market_chart).
+     * Cachea 24 h (RF-004 / §14.7). Devuelve [{ t: ms, price: float }, ...].
+     */
+    public function getHistoricalPrice(Cryptocurrency $crypto, int $days = 7): array
+    {
+        $cacheKey = "crypto_history:{$crypto->api_id}:{$days}";
+
+        return Cache::remember($cacheKey, now()->addHours(24), function () use ($crypto, $days) {
+            $response = Http::timeout(15)->get($this->baseUrl . "/coins/{$crypto->api_id}/market_chart", [
+                'vs_currency' => 'usd',
+                'days'        => $days,
+            ]);
+
+            if ($response->failed()) {
+                return [];
+            }
+
+            // CoinGecko devuelve 'prices' => [[timestamp_ms, precio], ...]
+            return collect($response->json('prices') ?? [])
+                ->map(fn ($p) => ['t' => $p[0], 'price' => $p[1]])
+                ->all();
+        });
+    }
+
 }

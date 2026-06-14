@@ -23,6 +23,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Vite::prefetch(concurrency: 3);
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Login::class,
+            fn($e) => app(\App\Services\AuditService::class)->log('LOGIN', 'Inició sesión', $e->user->id)
+        );
+
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Registered::class,
+            fn($e) => app(\App\Services\AuditService::class)->log('REGISTER', 'Se registró en la plataforma', $e->user->id)
+        );
+
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Logout::class,
+            fn($e) => $e->user
+                ? app(\App\Services\AuditService::class)->log('LOGOUT', 'Cerró sesión', $e->user->id)
+                : null
+        );
     }
 }

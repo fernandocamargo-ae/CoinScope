@@ -22,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'display_currency',
     ];
 
     /**
@@ -62,4 +63,8 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class);
     }
 
+    public function favorites(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Cryptocurrency::class);
+    }
 }

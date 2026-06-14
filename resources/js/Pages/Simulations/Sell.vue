@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
@@ -11,142 +11,137 @@ const props = defineProps({
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
 
-const preview = ref(null);
-const previewError = ref(null);
-const loadingPreview = ref(false);
-
 const form = useForm({
     cryptocurrency_id: props.holdings[0]?.cryptocurrency_id ?? null,
     quantity: '',
 });
 
-const selected = computed(() =>
-    props.holdings.find(h => h.cryptocurrency_id === form.cryptocurrency_id)
-);
+const prices = ref({});
+const gtqRate = ref(7.75);
+const loadingPrice = ref(false);
 
 const usd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 const gtq = (n) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(n ?? 0);
 
-function venderTodo() {
-    if (selected.value) form.quantity = selected.value.balance;
-}
+const selected = computed(() => props.holdings.find((h) => h.cryptocurrency_id === form.cryptocurrency_id));
+const price = computed(() => Number(prices.value[form.cryptocurrency_id] ?? 0));
+const qtyNum = computed(() => Number(form.quantity) || 0);
+const usdValue = computed(() => qtyNum.value * price.value);
+const gtqValue = computed(() => usdValue.value * gtqRate.value);
+const overBalance = computed(() => selected.value && qtyNum.value > Number(selected.value.balance));
+const canSubmit = computed(() => qtyNum.value > 0 && !overBalance.value && price.value > 0);
 
-async function calcular() {
-    previewError.value = null;
-    preview.value = null;
+const percents = [25, 50, 75, 100];
 
-    if (!form.cryptocurrency_id || !form.quantity) {
-        previewError.value = 'Selecciona una cripto e ingresa una cantidad.';
-        return;
-    }
-
-    loadingPreview.value = true;
+async function fetchPrice() {
+    if (!form.cryptocurrency_id) return;
+    loadingPrice.value = true;
     try {
-        const { data } = await window.axios.get('/simulations/sell/preview', {
-            params: {
-                cryptocurrency_id: form.cryptocurrency_id,
-                quantity: form.quantity,
-            },
-        });
-        preview.value = data;
-    } catch (e) {
-        previewError.value = 'No se pudo obtener el precio. Intenta de nuevo.';
-    } finally {
-        loadingPreview.value = false;
+        const { data } = await window.axios.get('/prices/current', { params: { ids: [form.cryptocurrency_id] } });
+        prices.value = { ...prices.value, ...data.prices };
+        gtqRate.value = Number(data.gtq_rate) || gtqRate.value;
+    } catch (e) { /* silencioso */ } finally {
+        loadingPrice.value = false;
     }
 }
 
-function guardar() {
+onMounted(fetchPrice);
+watch(() => form.cryptocurrency_id, fetchPrice);
+
+function setPercent(p) {
+    if (selected.value) form.quantity = (Number(selected.value.balance) * p / 100).toFixed(8);
+}
+
+function vender() {
+    if (!canSubmit.value) return;
     form.post('/simulations/sell', {
         preserveScroll: true,
-        onSuccess: () => {
-            preview.value = null;
-            form.reset('quantity');
-        },
+        onSuccess: () => { form.reset('quantity'); fetchPrice(); },
     });
 }
 </script>
 
 <template>
-
-    <Head title="Simular Venta" />
+    <Head title="Vender" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-gray-800">Simular Venta</h2>
+            <h2 class="text-xl font-semibold leading-tight text-white">Vender</h2>
         </template>
 
-        <div class="py-12">
-            <div class="mx-auto max-w-2xl sm:px-6 lg:px-8 space-y-6">
+        <div class="py-10">
+            <div class="mx-auto max-w-xl px-4 sm:px-6 lg:px-8 space-y-4">
 
                 <div v-if="flashSuccess"
-                    class="rounded-md bg-green-50 p-4 text-sm text-green-800 border border-green-200">
+                     class="rounded-xl border border-neon/30 bg-neon/10 p-4 text-sm font-medium text-neon">
                     {{ flashSuccess }}
                 </div>
 
-                <!-- Sin criptos -->
-                <div v-if="holdings.length === 0" class="bg-white shadow-sm sm:rounded-lg p-6 text-gray-600">
+                <div v-if="holdings.length === 0"
+                     class="rounded-2xl border border-edge bg-surface p-6 text-slate-300 shadow-card">
                     No tienes criptomonedas para vender todavía.
-                    <a href="/simulations/buy" class="text-indigo-600 underline">Simula una compra primero</a>.
+                    <a href="/simulations/buy" class="text-neon underline">Simula una compra primero</a>.
                 </div>
 
-                <template v-else>
-                    <!-- Formulario -->
-                    <div class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
+                <div v-else class="overflow-hidden rounded-2xl border border-edge bg-surface shadow-card">
+                    <!-- Encabezado precio en vivo -->
+                    <div class="flex items-center justify-between border-b border-edge px-6 py-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Criptomoneda</label>
-                            <select v-model="form.cryptocurrency_id"
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <option v-for="h in holdings" :key="h.cryptocurrency_id" :value="h.cryptocurrency_id">
-                                    {{ h.name }} ({{ h.symbol }})
-                                </option>
-                            </select>
-                            <p v-if="selected" class="mt-1 text-xs text-gray-500">
-                                Disponible: {{ Number(selected.balance).toFixed(8) }} {{ selected.symbol }}
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Precio actual</p>
+                            <p class="text-lg font-bold tabular-nums text-white">
+                                {{ price > 0 ? usd(price) : '—' }}
+                                <span class="text-sm font-medium text-slate-500">/ {{ selected?.symbol }}</span>
                             </p>
                         </div>
+                        <span class="flex items-center gap-1.5 rounded-full bg-neon/10 px-3 py-1 text-xs font-semibold text-neon">
+                            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-neon"></span>
+                            En vivo
+                        </span>
+                    </div>
 
+                    <div class="space-y-5 p-6">
+                        <!-- Activo -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Cantidad a vender</label>
-                            <div class="mt-1 flex gap-2">
-                                <input v-model="form.quantity" type="number" min="0" step="0.00000001"
-                                    placeholder="Ej. 0.01"
-                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                                <button type="button" @click="venderTodo"
-                                    class="whitespace-nowrap rounded-md bg-gray-100 px-3 text-sm text-gray-700 hover:bg-gray-200">
-                                    Vender todo
+                            <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">Activo</label>
+                            <select v-model="form.cryptocurrency_id"
+                                    class="block w-full rounded-xl border-edge bg-surface-2 py-3 text-base font-semibold text-white shadow-sm focus:border-neon focus:ring-neon">
+                                <option v-for="h in holdings" :key="h.cryptocurrency_id" :value="h.cryptocurrency_id">{{ h.name }} ({{ h.symbol }})</option>
+                            </select>
+                        </div>
+
+                        <!-- Cantidad -->
+                        <div>
+                            <div class="mb-1.5 flex items-center justify-between">
+                                <label class="text-xs font-medium uppercase tracking-wide text-slate-500">Vendes ({{ selected?.symbol }})</label>
+                                <span class="text-xs text-slate-500">Disponible: {{ Number(selected?.balance ?? 0).toFixed(8) }}</span>
+                            </div>
+                            <input v-model="form.quantity" type="number" min="0" step="0.00000001" placeholder="0.00000000"
+                                   class="block w-full rounded-xl border-edge bg-surface-2 py-3.5 px-4 text-2xl font-bold tabular-nums text-white placeholder-slate-600 shadow-sm focus:border-neon focus:ring-neon" />
+
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <button v-for="p in percents" :key="p" type="button" @click="setPercent(p)"
+                                        class="rounded-lg border border-edge bg-surface-2 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-neon/50 hover:text-neon">
+                                    {{ p }}%
                                 </button>
                             </div>
-                            <p v-if="form.errors.quantity" class="mt-1 text-sm text-red-600">{{ form.errors.quantity }}
-                            </p>
+                            <p v-if="overBalance" class="mt-2 text-sm text-loss">No tienes suficiente {{ selected?.symbol }}.</p>
+                            <p v-if="form.errors.quantity" class="mt-1 text-sm text-loss">{{ form.errors.quantity }}</p>
                         </div>
 
-                        <button @click="calcular" :disabled="loadingPreview"
-                            class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
-                            {{ loadingPreview ? 'Calculando...' : 'Calcular' }}
-                        </button>
-
-                        <p v-if="previewError" class="text-sm text-red-600">{{ previewError }}</p>
-                    </div>
-
-                    <!-- Resultado -->
-                    <div v-if="preview"
-                        class="bg-indigo-50 border border-indigo-200 shadow-sm sm:rounded-lg p-6 space-y-2">
-                        <h3 class="font-semibold text-indigo-900">Resultado de la venta</h3>
-                        <div class="text-sm text-gray-700 space-y-1">
-                            <p>Precio actual: <strong>{{ usd(preview.price_usd) }}</strong> / {{ preview.symbol }}</p>
-                            <p>Venderás: <strong>{{ Number(preview.quantity).toFixed(8) }} {{ preview.symbol }}</strong>
-                            </p>
-                            <p>Recibirás (USD): <strong>{{ usd(preview.usd_value) }}</strong></p>
-                            <p>Equivalente (GTQ): <strong>{{ gtq(preview.gtq_value) }}</strong></p>
+                        <!-- Resultado en vivo -->
+                        <div class="rounded-xl border border-edge bg-night/40 p-4">
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Recibirás (aprox.)</p>
+                            <p class="mt-1 text-2xl font-bold tabular-nums text-neon">{{ usd(usdValue) }}</p>
+                            <p class="text-sm tabular-nums text-slate-400">≈ {{ gtq(gtqValue) }}</p>
                         </div>
 
-                        <button @click="guardar" :disabled="form.processing"
-                            class="mt-2 inline-block rounded-md bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-green-700 disabled:opacity-50">
-                            {{ form.processing ? 'Guardando...' : 'Guardar simulación' }}
+                        <!-- CTA -->
+                        <button @click="vender" :disabled="!canSubmit || form.processing"
+                                class="w-full rounded-xl bg-loss py-3.5 text-base font-bold text-night transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
+                            {{ form.processing ? 'Procesando...' : `Vender ${selected?.symbol ?? ''}` }}
                         </button>
                     </div>
-                </template>
+                </div>
 
             </div>
         </div>

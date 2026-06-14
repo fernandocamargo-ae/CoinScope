@@ -135,4 +135,66 @@ class SimulationService
     {
         return $this->simulations->paginateForUser($userId, $filters, $perPage);
     }
+
+        /**
+     * Calcula un intercambio SIN guardar. Convierte origen -> destino (RF-007).
+     */
+    public function previewExchange(Cryptocurrency $source, Cryptocurrency $target, float $amount): SimulationResultData
+    {
+        $conv = $this->prices->convertCrypto($source, $target, $amount);
+
+        return new SimulationResultData(
+            type:           'EXCHANGE',
+            sourceCryptoId: $source->id,
+            targetCryptoId: $target->id,
+            sourceAmount:   $amount,
+            targetAmount:   $conv['target_amount'],
+            sourcePriceUsd: $conv['source_price_usd'],
+            targetPriceUsd: $conv['target_price_usd'],
+            usdEquivalent:  $conv['usd_equivalent'],
+        );
+    }
+
+    /**
+     * Ejecuta y GUARDA el intercambio: descuenta la cripto de origen y suma la de destino.
+     */
+    public function executeExchange(User $user, Cryptocurrency $source, Cryptocurrency $target, float $amount): Simulation
+    {
+        if ($source->id === $target->id) {
+            throw new \DomainException('El origen y el destino deben ser diferentes.');
+        }
+        if ($amount <= 0) {
+            throw new \DomainException('La cantidad debe ser mayor a cero.');
+        }
+
+        $portfolio   = $user->portfolio;
+        $sourceAsset = $portfolio->assets()->where('cryptocurrency_id', $source->id)->first();
+
+        // RN-04: no intercambiar más de lo disponible
+        if (! $sourceAsset || (float) $sourceAsset->balance < $amount) {
+            throw new \DomainException('No tienes suficiente ' . $source->symbol . ' para intercambiar.');
+        }
+
+        $result = $this->previewExchange($source, $target, $amount);
+
+        return DB::transaction(function () use ($user, $portfolio, $sourceAsset, $target, $amount, $result) {
+            $simulation = $this->simulations->create(array_merge(
+                $result->toArray(),
+                ['user_id' => $user->id],
+            ));
+
+            // Descuenta el origen
+            $sourceAsset->decrement('balance', $amount);
+
+            // Suma el destino (crea el asset si es la primera vez)
+            $targetAsset = $portfolio->assets()->firstOrCreate(
+                ['cryptocurrency_id' => $target->id],
+                ['balance' => 0],
+            );
+            $targetAsset->increment('balance', $result->targetAmount);
+
+            return $simulation;
+        });
+    }
+
 }

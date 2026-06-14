@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 
@@ -11,125 +11,134 @@ const props = defineProps({
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
 
-const preview = ref(null);
-const previewError = ref(null);
-const loadingPreview = ref(false);
-
 const form = useForm({
     cryptocurrency_id: props.cryptocurrencies[0]?.id ?? null,
     usd_amount: '',
 });
 
-const money = (n) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
+const prices = ref({});
+const loadingPrice = ref(false);
 
-async function calcular() {
-    previewError.value = null;
-    preview.value = null;
+const usd = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 
-    if (!form.cryptocurrency_id || !form.usd_amount) {
-        previewError.value = 'Selecciona una cripto e ingresa un monto.';
-        return;
-    }
+const selected = computed(() => props.cryptocurrencies.find((c) => c.id === form.cryptocurrency_id));
+const price = computed(() => Number(prices.value[form.cryptocurrency_id] ?? 0));
+const amountNum = computed(() => Number(form.usd_amount) || 0);
+const quantity = computed(() => (price.value > 0 ? amountNum.value / price.value : 0));
+const overBalance = computed(() => amountNum.value > Number(props.usdBalance));
+const canSubmit = computed(() => amountNum.value > 0 && !overBalance.value && price.value > 0);
 
-    loadingPreview.value = true;
+const quickAmounts = [100, 500, 1000, 5000];
+
+async function fetchPrice() {
+    if (!form.cryptocurrency_id) return;
+    loadingPrice.value = true;
     try {
-        const { data } = await window.axios.get('/simulations/buy/preview', {
-            params: {
-                cryptocurrency_id: form.cryptocurrency_id,
-                usd_amount: form.usd_amount,
-            },
-        });
-        preview.value = data;
-    } catch (e) {
-        previewError.value = 'No se pudo obtener el precio. Intenta de nuevo.';
-    } finally {
-        loadingPreview.value = false;
+        const { data } = await window.axios.get('/prices/current', { params: { ids: [form.cryptocurrency_id] } });
+        prices.value = { ...prices.value, ...data.prices };
+    } catch (e) { /* silencioso */ } finally {
+        loadingPrice.value = false;
     }
 }
 
-function guardar() {
+onMounted(fetchPrice);
+watch(() => form.cryptocurrency_id, fetchPrice);
+
+function setQuick(v) { form.usd_amount = v; }
+function setMax() { form.usd_amount = Number(props.usdBalance).toFixed(2); }
+
+function comprar() {
+    if (!canSubmit.value) return;
     form.post('/simulations/buy', {
         preserveScroll: true,
-        onSuccess: () => {
-            preview.value = null;
-            form.reset('usd_amount');
-        },
+        onSuccess: () => { form.reset('usd_amount'); fetchPrice(); },
     });
 }
 </script>
 
 <template>
-
-    <Head title="Simular Compra" />
+    <Head title="Comprar" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                Simular Compra
-            </h2>
+            <h2 class="text-xl font-semibold leading-tight text-white">Comprar</h2>
         </template>
 
-        <div class="py-12">
-            <div class="mx-auto max-w-2xl sm:px-6 lg:px-8 space-y-6">
+        <div class="py-10">
+            <div class="mx-auto max-w-xl px-4 sm:px-6 lg:px-8 space-y-4">
 
-                <!-- Mensaje de éxito -->
                 <div v-if="flashSuccess"
-                    class="rounded-md bg-green-50 p-4 text-sm text-green-800 border border-green-200">
+                     class="rounded-xl border border-neon/30 bg-neon/10 p-4 text-sm font-medium text-neon">
                     {{ flashSuccess }}
                 </div>
 
-                <!-- Saldo disponible -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg p-6">
-                    <p class="text-sm text-gray-500">Saldo disponible</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ money(usdBalance) }}</p>
-                </div>
-
-                <!-- Formulario -->
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Criptomoneda</label>
-                        <select v-model="form.cryptocurrency_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <option v-for="c in cryptocurrencies" :key="c.id" :value="c.id">
-                                {{ c.name }} ({{ c.symbol }})
-                            </option>
-                        </select>
+                <div class="overflow-hidden rounded-2xl border border-edge bg-surface shadow-card">
+                    <!-- Encabezado con precio en vivo -->
+                    <div class="flex items-center justify-between border-b border-edge px-6 py-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Precio actual</p>
+                            <p class="text-lg font-bold tabular-nums text-white">
+                                {{ price > 0 ? usd(price) : '—' }}
+                                <span class="text-sm font-medium text-slate-500">/ {{ selected?.symbol }}</span>
+                            </p>
+                        </div>
+                        <span class="flex items-center gap-1.5 rounded-full bg-neon/10 px-3 py-1 text-xs font-semibold text-neon">
+                            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-neon"></span>
+                            En vivo
+                        </span>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Monto en USD</label>
-                        <input v-model="form.usd_amount" type="number" min="0" step="0.01" placeholder="Ej. 1000"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        <p v-if="form.errors.usd_amount" class="mt-1 text-sm text-red-600">
-                            {{ form.errors.usd_amount }}
-                        </p>
+                    <div class="space-y-5 p-6">
+                        <!-- Selector de activo -->
+                        <div>
+                            <label class="mb-1.5 block text-xs font-medium uppercase tracking-wide text-slate-500">Activo</label>
+                            <select v-model="form.cryptocurrency_id"
+                                    class="block w-full rounded-xl border-edge bg-surface-2 py-3 text-base font-semibold text-white shadow-sm focus:border-neon focus:ring-neon">
+                                <option v-for="c in cryptocurrencies" :key="c.id" :value="c.id">{{ c.name }} ({{ c.symbol }})</option>
+                            </select>
+                        </div>
+
+                        <!-- Monto -->
+                        <div>
+                            <div class="mb-1.5 flex items-center justify-between">
+                                <label class="text-xs font-medium uppercase tracking-wide text-slate-500">Pagas (USD)</label>
+                                <span class="text-xs text-slate-500">Saldo: {{ usd(usdBalance) }}</span>
+                            </div>
+                            <div class="relative">
+                                <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-500">$</span>
+                                <input v-model="form.usd_amount" type="number" min="0" step="0.01" placeholder="0.00"
+                                       class="block w-full rounded-xl border-edge bg-surface-2 py-3.5 pl-9 pr-4 text-2xl font-bold tabular-nums text-white placeholder-slate-600 shadow-sm focus:border-neon focus:ring-neon" />
+                            </div>
+
+                            <!-- Montos rápidos -->
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <button v-for="q in quickAmounts" :key="q" type="button" @click="setQuick(q)"
+                                        class="rounded-lg border border-edge bg-surface-2 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-neon/50 hover:text-neon">
+                                    ${{ q.toLocaleString() }}
+                                </button>
+                                <button type="button" @click="setMax"
+                                        class="rounded-lg border border-edge bg-surface-2 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-neon/50 hover:text-neon">
+                                    Máx
+                                </button>
+                            </div>
+                            <p v-if="overBalance" class="mt-2 text-sm text-loss">Saldo insuficiente.</p>
+                            <p v-if="form.errors.usd_amount" class="mt-1 text-sm text-loss">{{ form.errors.usd_amount }}</p>
+                        </div>
+
+                        <!-- Resultado en vivo -->
+                        <div class="rounded-xl border border-edge bg-night/40 p-4">
+                            <p class="text-xs uppercase tracking-wide text-slate-500">Recibirás (aprox.)</p>
+                            <p class="mt-1 text-2xl font-bold tabular-nums text-neon">
+                                {{ quantity.toFixed(8) }} <span class="text-base text-slate-400">{{ selected?.symbol }}</span>
+                            </p>
+                        </div>
+
+                        <!-- CTA -->
+                        <button @click="comprar" :disabled="!canSubmit || form.processing"
+                                class="w-full rounded-xl bg-neon py-3.5 text-base font-bold text-night shadow-neon transition hover:bg-neon-dark disabled:cursor-not-allowed disabled:opacity-40">
+                            {{ form.processing ? 'Procesando...' : `Comprar ${selected?.symbol ?? ''}` }}
+                        </button>
                     </div>
-
-                    <button @click="calcular" :disabled="loadingPreview"
-                        class="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50">
-                        {{ loadingPreview ? 'Calculando...' : 'Calcular' }}
-                    </button>
-
-                    <p v-if="previewError" class="text-sm text-red-600">{{ previewError }}</p>
-                </div>
-
-                <!-- Resultado del preview -->
-                <div v-if="preview"
-                    class="overflow-hidden bg-indigo-50 border border-indigo-200 shadow-sm sm:rounded-lg p-6 space-y-2">
-                    <h3 class="font-semibold text-indigo-900">Resultado de la simulación</h3>
-                    <div class="text-sm text-gray-700 space-y-1">
-                        <p>Precio actual: <strong>{{ money(preview.price_usd) }}</strong> / {{ preview.symbol }}</p>
-                        <p>Invertirás: <strong>{{ money(preview.usd_amount) }}</strong></p>
-                        <p>Recibirás: <strong>{{ Number(preview.quantity).toFixed(8) }} {{ preview.symbol }}</strong>
-                        </p>
-                    </div>
-
-                    <button @click="guardar" :disabled="form.processing"
-                        class="mt-2 inline-block rounded-md bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-green-700 disabled:opacity-50">
-
-                        {{ form.processing ? 'Guardando...' : 'Guardar simulación' }}
-                    </button>
                 </div>
 
             </div>
