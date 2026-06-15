@@ -12,10 +12,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // POLIMORFISMO: el SimulationService depende del CONTRATO (la interfaz).
+        // Aquí decidimos qué implementación concreta inyectar. Basta cambiar esta
+        // única línea para usar otra implementación, sin tocar el servicio.
+
+        // Implementación activa: guarda en MySQL (Eloquent)
         $this->app->bind(
             \App\Repositories\Contracts\SimulationRepositoryInterface::class,
             \App\Repositories\Eloquent\SimulationRepository::class,
         );
+
+        // Implementación alternativa (demo): guarda en memoria. Para demostrar el
+        // polimorfismo, comenta la línea de arriba y descomenta esta:
+        // $this->app->bind(
+        //     \App\Repositories\Contracts\SimulationRepositoryInterface::class,
+        //     \App\Repositories\InMemory\InMemorySimulationRepository::class,
+        // );
     }
 
     /**

@@ -783,6 +783,67 @@ sequenceDiagram
     DB-->>Repo: OK
 ```
 
+### Registro de Usuario (con estado inicial)
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant Vue as Vue (Register)
+    participant Ctrl as RegisteredUserController
+    participant Audit as AuditService
+    participant DB as MySQL
+
+    Usuario->>Vue: Completa datos + estado inicial (USD y criptos)
+    Vue->>Ctrl: POST /register
+    Ctrl->>Ctrl: Valida datos y tenencias declaradas
+    Ctrl->>DB: INSERT users (contraseña hasheada)
+    Ctrl->>DB: INSERT portfolios (usd_balance inicial)
+
+    loop Por cada cripto declarada (cantidad > 0)
+        Ctrl->>DB: INSERT portfolio_assets
+    end
+
+    Ctrl->>Audit: log(REGISTER)
+    Audit->>DB: INSERT audit_logs
+    Ctrl->>Ctrl: Auth::login(usuario)
+    Ctrl-->>Vue: Redirige al Dashboard
+    Vue-->>Usuario: Portafolio con el estado inicial declarado
+```
+
+### Inicio y Cierre de Sesión (Auditoría de ingreso/salida)
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant Vue as Vue (Login)
+    participant Ctrl as AuthenticatedSessionController
+    participant Auth as Laravel Auth
+    participant Audit as AuditService
+    participant DB as MySQL
+
+    Note over Usuario,DB: Ingreso al portal
+    Usuario->>Vue: Ingresa credenciales
+    Vue->>Ctrl: POST /login
+    Ctrl->>Auth: attempt(credenciales)
+    alt Credenciales válidas
+        Auth-->>Ctrl: Sesión iniciada (evento Login)
+        Auth->>Audit: log(LOGIN)
+        Audit->>DB: INSERT audit_logs
+        Ctrl-->>Vue: Redirige al Dashboard
+    else Credenciales inválidas
+        Auth-->>Ctrl: Falla de autenticación
+        Ctrl-->>Vue: Mensaje de error
+    end
+
+    Note over Usuario,DB: Salida del portal
+    Usuario->>Vue: Cerrar sesión
+    Vue->>Ctrl: POST /logout
+    Ctrl->>Auth: logout() (evento Logout)
+    Auth->>Audit: log(LOGOUT)
+    Audit->>DB: INSERT audit_logs
+    Ctrl-->>Vue: Redirige al inicio
+```
+
 ---
 
 ## 19. Modelo Entidad Relación (ERD) Final
@@ -983,3 +1044,62 @@ classDiagram
 - `REGISTER`, `LOGIN`, `LOGOUT`, `UPDATE_PROFILE`
 - `SIMULATE_BUY`, `SIMULATE_SELL`, `SIMULATE_EXCHANGE`
 - `VIEW_PRICE`, `VIEW_HISTORY`
+
+---
+
+## 21. UML — Diagrama de Actividades
+
+Representa el flujo de una **simulación de compra**, destacando la regla de negocio **RN-02**: la simulación solo afecta el portafolio cuando el usuario decide **guardarla** (si la cancela, no hay ningún efecto).
+
+```mermaid
+flowchart TD
+    Start([Inicio]) --> A[Usuario selecciona criptomoneda]
+    A --> B[Ingresa monto en USD]
+    B --> C[Sistema consulta precio<br/>CoinGecko o caché]
+    C --> D[Calcula la cantidad a recibir]
+    D --> E{¿Saldo USD<br/>suficiente?}
+    E -- No --> F[Muestra error<br/>botón Guardar deshabilitado]
+    F --> B
+    E -- Sí --> G[Muestra resultado de la simulación]
+    G --> H{¿El usuario<br/>guarda?}
+    H -- Cancela --> I([Fin: no afecta el portafolio])
+    H -- Guarda --> J[Inicia transacción]
+    J --> K[Registra la simulación]
+    K --> L[Descuenta USD y suma la cripto]
+    L --> M[Registra auditoría SIMULATE_BUY]
+    M --> N([Fin: portafolio actualizado])
+```
+
+> El mismo patrón aplica a la venta y al intercambio (cambia solo el cálculo y los saldos afectados): **calcular → mostrar → guardar o cancelar**.
+
+---
+
+## 22. Diagrama de Despliegue
+
+Muestra la distribución física de los componentes en producción: el navegador del cliente, el servidor de hosting compartido (Apache + PHP/Laravel + MySQL) y los servicios externos consumidos vía HTTPS.
+
+```mermaid
+flowchart TD
+    subgraph Cliente["Cliente"]
+        Browser["Navegador Web<br/>Vue 3 + Inertia (assets compilados)"]
+    end
+
+    subgraph Hosting["Servidor Hostinger (hosting compartido)"]
+        Apache["Servidor Web Apache<br/>document root → public/"]
+        PHP["PHP 8.2 · Laravel 12<br/>Controllers · Services · Repositories"]
+        MySQL[("MySQL 8/9<br/>Base de datos")]
+        Apache --> PHP
+        PHP --> MySQL
+    end
+
+    subgraph Externos["Servicios externos"]
+        CoinGecko["CoinGecko API<br/>precios actuales e históricos"]
+        FX["open.er-api.com<br/>tipo de cambio USD/GTQ"]
+    end
+
+    Browser -- HTTPS --> Apache
+    PHP -- HTTPS --> CoinGecko
+    PHP -- HTTPS --> FX
+```
+
+> En desarrollo local, el despliegue equivale a: navegador → `php artisan serve` (PHP/Laravel) + Vite → MySQL local → mismas APIs externas.
