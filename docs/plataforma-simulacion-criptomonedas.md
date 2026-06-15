@@ -1,5 +1,8 @@
 # Plataforma Web para la Simulación de Compra, Venta e Intercambio de Criptomonedas
 
+# Fernando Camargo
+# Carnet-0908-19-2575
+
 ## 1. Introducción
 
 El crecimiento de las criptomonedas ha transformado significativamente la manera en que las personas realizan inversiones y transacciones financieras a nivel mundial. Activos digitales como Bitcoin, Ethereum y Tether han adquirido gran relevancia dentro de los mercados financieros debido a su descentralización, accesibilidad y potencial de crecimiento.
@@ -501,14 +504,17 @@ flowchart LR
 
 **Flujo Principal:**
 1. Usuario accede al formulario.
-2. Ingresa datos requeridos.
-3. Sistema valida información.
-4. Sistema crea usuario.
-5. Sistema crea portafolio inicial.
-6. Sistema confirma registro.
+2. Ingresa sus datos (nombre, correo, contraseña).
+3. Declara su **estado inicial**: saldo en USD y, opcionalmente, las criptomonedas que ya posee con su cantidad.
+4. Sistema valida la información.
+5. Sistema crea el usuario.
+6. Sistema crea el portafolio inicial con el saldo declarado y las tenencias de cripto indicadas (`portfolio_assets`).
+7. Sistema confirma el registro e inicia sesión.
 
 - **Precondiciones:** Ninguna.
-- **Postcondiciones:** Usuario registrado.
+- **Postcondiciones:** Usuario registrado con su portafolio en el estado inicial declarado.
+
+> El estado inicial se verá afectado únicamente al **guardar** simulaciones (RN-02). Si el usuario no declara criptomonedas, su portafolio inicia solo con el saldo en USD.
 
 ### CU-02 Simular Compra
 

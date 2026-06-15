@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cryptocurrency;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,12 @@ class RegisteredUserController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('Auth/Register');
+        return Inertia::render('Auth/Register', [
+            // Criptos disponibles para declarar el estado inicial
+            'cryptocurrencies' => Cryptocurrency::where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'symbol']),
+        ]);
     }
 
     /**
@@ -35,6 +41,12 @@ class RegisteredUserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+
+            // Estado inicial (flujo del enunciado): saldo USD + tenencias de criptos
+            'initial_usd' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'holdings' => ['nullable', 'array'],
+            'holdings.*.cryptocurrency_id' => ['required', 'integer', 'exists:cryptocurrencies,id'],
+            'holdings.*.quantity' => ['required', 'numeric', 'min:0'],
         ]);
 
         $user = User::create([
@@ -43,10 +55,20 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        //Cada Usuario nuevo arranca con un portafolio y saldo virtual para simular
-        $user->portfolio()->create([
-            'usd_balance' => 100000, // 100,000 USD virtuales de saldo inicial
+        // El estado inicial declarado define el portafolio de partida
+        $portfolio = $user->portfolio()->create([
+            'usd_balance' => $request->input('initial_usd') ?? 100000,
         ]);
+
+        // Crea las tenencias de cripto declaradas (solo las que tengan cantidad > 0)
+        foreach ($request->input('holdings', []) as $holding) {
+            if ((float) ($holding['quantity'] ?? 0) > 0) {
+                $portfolio->assets()->create([
+                    'cryptocurrency_id' => $holding['cryptocurrency_id'],
+                    'balance' => $holding['quantity'],
+                ]);
+            }
+        }
 
         event(new Registered($user));
 
