@@ -29,8 +29,8 @@ const badge = (a) => {
                     Registro de los eventos importantes de tu cuenta (trazabilidad). RF-010.
                 </p>
 
-                <div class="overflow-hidden rounded-2xl border border-edge bg-surface shadow-card">
-                    <table class="min-w-full divide-y divide-edge text-sm">
+                <div class="overflow-x-auto rounded-2xl border border-edge bg-surface shadow-card">
+                    <table class="w-full min-w-[600px] divide-y divide-edge text-sm">
                         <thead class="bg-surface-2/50">
                             <tr>
                                 <th class="px-4 py-3 text-left font-medium text-slate-400">Fecha y hora</th>

@@ -121,7 +121,8 @@ const cashPct = computed(() => (props.totalValue > 0 ? (props.usdBalance / props
                     <div class="border-b border-edge px-6 py-4">
                         <h3 class="font-semibold text-white">Mis criptomonedas</h3>
                     </div>
-                    <table class="min-w-full divide-y divide-edge text-sm">
+                    <div class="overflow-x-auto">
+                    <table class="w-full min-w-[600px] divide-y divide-edge text-sm">
                         <thead class="bg-surface-2/50">
                             <tr>
                                 <th class="px-6 py-3 text-left font-medium text-slate-400">Activo</th>
@@ -149,6 +150,7 @@ const cashPct = computed(() => (props.totalValue > 0 ? (props.usdBalance / props
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
             </div>
