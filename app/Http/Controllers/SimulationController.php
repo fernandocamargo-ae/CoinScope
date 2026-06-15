@@ -152,7 +152,7 @@ class SimulationController extends Controller
             'source_amount'    => $sim->source_amount,
             'target_amount'    => $sim->target_amount,
             'usd_equivalent'   => $sim->usd_equivalent,
-            'created_at'       => $sim->created_at->format('Y-m-d H:i'),
+            'created_at'       => $sim->created_at->format('d/m/Y H:i'),
         ]);
 
         return Inertia::render('Simulations/History', [
@@ -270,7 +270,7 @@ class SimulationController extends Controller
             // Filas
             foreach ($simulations as $s) {
                 fputcsv($out, [
-                    $s->created_at->format('Y-m-d H:i:s'),
+                    $s->created_at->format('d/m/Y H:i:s'),
                     $s->type,
                     $s->sourceCrypto?->symbol,
                     $s->source_amount,

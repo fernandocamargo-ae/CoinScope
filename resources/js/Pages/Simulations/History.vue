@@ -29,6 +29,13 @@ const badge = (t) => ({
     EXCHANGE: 'bg-ice/15 text-ice',
 }[t] ?? 'bg-surface-2 text-slate-300');
 
+// Etiqueta visible en español (el valor real en BD sigue siendo BUY/SELL/EXCHANGE)
+const tipoLabel = (t) => ({
+    BUY: 'COMPRA',
+    SELL: 'VENTA',
+    EXCHANGE: 'INTERCAMBIO',
+}[t] ?? t);
+
 function detalle(s) {
     if (s.type === 'BUY') return `Compró ${Number(s.target_amount).toFixed(8)} ${s.target_symbol}`;
     if (s.type === 'SELL') return `Vendió ${Number(s.source_amount).toFixed(8)} ${s.source_symbol}`;
@@ -103,7 +110,7 @@ function pageLabel(label) {
                                 <td class="px-4 py-3 text-slate-400">{{ s.created_at }}</td>
                                 <td class="px-4 py-3">
                                     <span :class="badge(s.type)" class="rounded-full px-2 py-0.5 text-xs font-semibold">
-                                        {{ s.type }}
+                                        {{ tipoLabel(s.type) }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-slate-200">{{ detalle(s) }}</td>

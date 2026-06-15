@@ -18,7 +18,7 @@ class AuditController extends Controller
                 'action'      => $log->action,
                 'description' => $log->description,
                 'ip_address'  => $log->ip_address,
-                'created_at'  => $log->created_at->format('Y-m-d H:i:s'),
+                'created_at'  => $log->created_at->format('d/m/Y H:i:s'),
             ]);
 
         return Inertia::render('Audit/Index', ['logs' => $logs]);

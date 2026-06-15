@@ -73,8 +73,8 @@
             <tbody>
                 @forelse ($simulations as $s)
                     <tr>
-                        <td>{{ $s->created_at->format('Y-m-d H:i') }}</td>
-                        <td><span class="badge badge-{{ $s->type }}">{{ $s->type }}</span></td>
+                        <td>{{ $s->created_at->format('d/m/Y H:i') }}</td>
+                        <td><span class="badge badge-{{ $s->type }}">{{ ['BUY' => 'COMPRA', 'SELL' => 'VENTA', 'EXCHANGE' => 'INTERCAMBIO'][$s->type] ?? $s->type }}</span></td>
                         <td>
                             @if ($s->type === 'BUY')
                                 Compró {{ rtrim(rtrim(number_format($s->target_amount, 8), '0'), '.') }} {{ optional($s->targetCrypto)->symbol }}
