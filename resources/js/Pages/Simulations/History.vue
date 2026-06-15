@@ -34,6 +34,13 @@ function detalle(s) {
     if (s.type === 'SELL') return `Vendió ${Number(s.source_amount).toFixed(8)} ${s.source_symbol}`;
     return `${Number(s.source_amount).toFixed(8)} ${s.source_symbol} → ${Number(s.target_amount).toFixed(8)} ${s.target_symbol}`;
 }
+
+// Traduce las etiquetas de paginación de Laravel (Previous/Next)
+function pageLabel(label) {
+    if (label.includes('Previous')) return '&laquo; Anterior';
+    if (label.includes('Next')) return 'Siguiente &raquo;';
+    return label;
+}
 </script>
 
 <template>
@@ -114,11 +121,11 @@ function detalle(s) {
                 <!-- Paginación -->
                 <div v-if="simulations.links.length > 3" class="flex flex-wrap gap-1">
                     <template v-for="(link, i) in simulations.links" :key="i">
-                        <span v-if="!link.url" class="px-3 py-1 text-sm text-slate-600" v-html="link.label" />
+                        <span v-if="!link.url" class="px-3 py-1 text-sm text-slate-600" v-html="pageLabel(link.label)" />
                         <Link v-else :href="link.url" preserve-state replace
                               class="rounded border px-3 py-1 text-sm"
                               :class="link.active ? 'border-neon bg-neon text-night' : 'border-edge bg-surface-2 text-slate-300 hover:border-slate-600'"
-                              v-html="link.label" />
+                              v-html="pageLabel(link.label)" />
                     </template>
                 </div>
 
